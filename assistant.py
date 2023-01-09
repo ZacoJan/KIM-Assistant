@@ -1,8 +1,15 @@
 import speech_recognition as sr
 import pyttsx3
 import pywhatkit
+import openai
 import datetime
 import wikipedia
+
+from config import OPENAIKEY, FREEMODE
+
+openai.api_key = OPENAIKEY
+FREEQUERYMODE = FREEMODE
+
 
 listener = sr.Recognizer()
 engine = pyttsx3.init()
@@ -34,6 +41,7 @@ def talk(text):
     engine.say(text)
     engine.runAndWait()
 
+
 def take_command():
     command = ''
     try:
@@ -44,7 +52,6 @@ def take_command():
             command = command.lower()
             if 'kim' in command:
                 command = command.replace('kim', '')
-                print(command)
     except:
         pass
     return command
@@ -54,6 +61,19 @@ def run_kim():
     command = take_command()
     print(command)
     if command != '':
+
+        if 'change voice' in command:
+            result = voiceChanger(command)
+            talk(result)
+
+        elif 'your name' in command:
+            talk("My Name is Kim, K. I. M")
+
+        else:
+            print('Listening')
+
+
+    if FREEQUERYMODE:
 
         if 'play' in command:
             song = command.replace('play', '')
@@ -78,15 +98,19 @@ def run_kim():
             date = datetime.date.today()
             talk(str(date))
 
-        elif 'change voice' in command:
-            result = voiceChanger(command)
-            talk(result)
+    else:
+        response = openai.Completion.create(
+        engine="text-davinci-002",
+        prompt=command,
+        temperature=0.5,
+        max_tokens=20,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+        )
 
-        elif 'your name' in command:
-            talk("My Name is Kim, K. I. M")
-
-        else:
-            talk('Listening')
+        # Print the generated text
+        talk(response["choices"][0]["text"])
 
 while True:
     run_kim()
