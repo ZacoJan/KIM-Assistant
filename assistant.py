@@ -109,8 +109,15 @@ def run_kim():
         presence_penalty=0
         )
 
+        # Save response
+        save_response(response["choices"][0]["text"])
+
         # Print the generated text
         talk(response["choices"][0]["text"])
+
+def save_response(response):
+    with open("responses.txt", "a") as f:
+        f.write(response + "\n" + "=+=" + "\n")
 
 while True:
     run_kim()
