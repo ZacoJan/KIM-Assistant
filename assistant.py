@@ -1,123 +1,106 @@
-import speech_recognition as sr
-import pyttsx3
-import pywhatkit
-import openai
-import datetime
-import wikipedia
+import getopt, sys
 
-from config import OPENAIKEY, FREEMODE
+from AISource import *
+from speech import *
+from analysis import *
+from config import *
 
-openai.api_key = OPENAIKEY
 FREEQUERYMODE = FREEMODE
 
 
-listener = sr.Recognizer()
-engine = pyttsx3.init()
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[28].id)
-
-
-def voiceChanger(person):
-    if "one" in person or '1' in person:
-        engine.setProperty('voice', voices[8].id)
-        return "Voice changed to Voice 1"
-
-    elif "two" in person or '2' in person:
-        engine.setProperty('voice', voices[28].id)
-        return "Voice changed to Voice 2"
-
-    elif "three" in person or '3' in person:
-        engine.setProperty('voice', voices[30].id)
-        return "Voice changed to Voice 3"
-
-    elif "four" in person or '4' in person:
-        engine.setProperty('voice', voices[40].id)
-        return "Voice changed to Voice 4"
-
-    return "Voice id not indexed"
-
-
-def talk(text):
-    engine.say(text)
-    engine.runAndWait()
-
-
-def take_command():
-    command = ''
+def main():
+    argumentList = sys.argv[1:]
+    
+    # Options
+    options = "htac:"
+    
+    # Long options
+    long_options = ["Help", "Text", "Audio", "CSV"]
+    
     try:
-        with sr.Microphone() as source:
-            print('listening...')
-            voice = listener.listen(source)
-            command = listener.recognize_google(voice)
-            command = command.lower()
-            if 'kim' in command:
-                command = command.replace('kim', '')
-    except:
-        pass
-    return command
+        # Parsing argument
+        arguments, values = getopt.getopt(argumentList, options, long_options)
+        
+        # checking each argument
+        for currentArgument, currentValue in arguments:
+    
+            if currentArgument in ("-h", "--Help"):
+                print ("Use -h or --Help for this menu\n" 
+                        + "Use -t or --Text to add text input and add a query afterwards\n"
+                        + "Example: script.py -t 'Who is Albert Einstein?'\n"
+                        + "Use -a or --Audio to use audio mode\n"
+                        + "Use -c or --CSV to read in a text file with a query on each line with no commas (Not a CSV file, yet)\n"
+                )
+                
+            elif currentArgument in ("-t", "--Text"):
+                print ("Running query on inputted text '({})'".format(sys.argv[2]))
+                run_kim(False,str(sys.argv[2]).lower())
+                
+            elif currentArgument in ("-a", "--Audio"):
+                print ("Running query on Audio...")
+                run_kim(True,"")
+
+            elif currentArgument in ("-c", "--CSV"):
+                print ("Running query on text in csv...")
+                queries = runCSV(sys.argv[2])
+                run_kim(False,queries)
+
+                
+    except getopt.error as err:
+        # output error, and return with an error code
+        print (str(err))
 
 
-def run_kim():
-    command = take_command()
-    print(command)
-    if command != '':
+# Main function
+def run_kim(AUDIOINPUT, command):
 
-        if 'change voice' in command:
-            result = voiceChanger(command)
-            talk(result)
-
-        elif 'your name' in command:
-            talk("My Name is Kim, K. I. M")
-
-        else:
-            print('Listening')
-
-
-    if FREEQUERYMODE:
-
-        if 'play' in command:
-            song = command.replace('play', '')
-            talk('playing ' + song)
-            pywhatkit.playonyt(song)
-
-        elif 'time' in command:
-            time = datetime.datetime.now().strftime('%I:%M %p')
-            talk('Current time is ' + time)
-
-        elif 'who is' in command or ('what is' in command and "your name" not in command):
-            try:
-                person = command.replace('who is', '')
-                person = command.replace('what is', '')
-                info = wikipedia.summary(person, 3)
-                print(info)
-                talk(info)
-            except wikipedia.exceptions.DisambiguationError as e:
-                talk(e)
-
-        elif 'date' in command:
-            date = datetime.date.today()
-            talk(str(date))
+    # Listen for command
+    if AUDIOINPUT:
+        while True:
+            command = ''
+            command = take_command()
+            if command != '':
+                query(command)
 
     else:
-        response = openai.Completion.create(
-        engine="text-davinci-002",
-        prompt=command,
-        temperature=0.5,
-        max_tokens=20,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0
-        )
+        if type(command) == list:
+            for question in command:
+                query(str(question))
 
-        # Save response
-        save_response(response["choices"][0]["text"])
+        elif type(command) == str:
+            query(command)
 
-        # Print the generated text
-        talk(response["choices"][0]["text"])
+        else:
+            raise ValueError(command)
 
-def save_response(response):
-    with open("responses.txt", "a") as f:
-        f.write(response + "\n" + "=+=" + "\n")
 
-while True:
-    run_kim()
+def query(command):
+    if command != '':
+
+        # Checks for pre compiled query responses
+        for phrase in COMMONPHRASES:
+            if phrase in command:
+                response = commonPhrases(command)
+        
+        #If free mode enabled query wiki
+        if FREEQUERYMODE:
+            response = wikiQuery(command)
+        
+        # If in paid mode query open ai api
+        else:
+            response = generalQuery(command)
+        
+
+        # Logging Functions - Change options in config.py
+        if CONSOLELOG:
+            print(response)
+
+        if AUDIOOUTPUT:
+            talk(response)
+        
+        if SAVEMODE:
+            save_response(response)
+
+
+if __name__ == "__main__":
+    main()
